@@ -1,8 +1,8 @@
 {
   "name": "kyros",
   "scripts": {
-    "setup:debug": "cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DSHARED=0 -DBUILD_TEST=1 -GNinja -B build",
-    "setup:release": "cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DSHARED=0 -DBUILD_TEST=0 -DNDEBUG=0 -GNinja -B build",
+    "setup:debug": "cmake -DKYROS_USE_MIMALLOC=1 -DKYROS_OVERRIDE_LIBUV_ALLOCATOR=1 -DKYROS_OVERRIDE_BORINGSSL_ALLOCATOR=1 -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DSHARED=0 -DBUILD_TEST=1 -GNinja -B build",
+    "setup:release": "cmake -DKYROS_USE_MIMALLOC=1 -DKYROS_OVERRIDE_LIBUV_ALLOCATOR=1 -DKYROS_OVERRIDE_BORINGSSL_ALLOCATOR=1 -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_C_COMPILER=clang -DSHARED=0 -DBUILD_TEST=0 -DNDEBUG=0 -GNinja -B build",
     "fmt": "clang-format -i -style=WebKit src/*.c src/*.h src/*.c src/include/*.h",
     "build": "ninja -Cbuild",
     "build:test": "ninja -Cbuild && ./build/test"

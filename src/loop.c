@@ -67,6 +67,7 @@ static inline int32_t kyros_loop_task_index_of(kyros_loop_internal* internal, ky
     }
     return -1;
 }
+
 static inline void kyros_loop_free_task(kyros_loop* loop, kyros_task* task)
 {
     auto internal = kyros_get_internal_loop(loop);

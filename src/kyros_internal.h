@@ -3,17 +3,66 @@
 #include <assert.h>
 #include <kyros.h>
 #include <kyros_bitset.h>
-#include <mimalloc.h>
 #include <openssl/ssl.h>
 #include <stdatomic.h>
 #include <uv.h>
 
+
+#ifdef KYROS_USE_MIMALLOC
+#include <mimalloc.h>
+
+#ifndef kyros_alloc
 #define kyros_alloc mi_malloc
+#endif 
+#ifndef kyros_free
 #define kyros_free mi_free
+#endif
+#ifndef kyros_resize
 #define kyros_resize mi_realloc
+#endif
+#ifndef kyros_usable_size
+#define kyros_usable_size mi_usable_size
+#endif
+#ifndef kyros_calloc
+#define kyros_calloc mi_calloc
+#endif
+#else 
+#ifdef _WIN32
+#include <malloc.h>
+#else
+#include <malloc/malloc.h>
+#endif
+
+#ifndef malloc_usable_size
+#ifdef _WIN32
+#define malloc_usable_size(ptr) _msize(ptr)
+#else
+#define malloc_usable_size(ptr) malloc_size(ptr)
+#endif
+#endif
+
+#ifndef kyros_alloc
+#define kyros_alloc malloc
+#endif 
+#ifndef kyros_free
+#define kyros_free free
+#endif
+#ifndef kyros_resize
+#define kyros_resize realloc
+#endif
+#ifndef kyros_calloc
+#define kyros_calloc calloc
+#endif
+#ifndef kyros_usable_size
+#define kyros_usable_size malloc_usable_size
+#endif
+#endif
 
 #define TASK_HIVE_SIZE 64 // used on main thread only to defer tasks (global)
 #define ASYNC_TASK_HIVE_SIZE 64 // used to signal tasks from another thread to main thread (per loop)
+
+#define KYROS_SOCKET_READABLE UV_READABLE
+#define KYROS_SOCKET_WRITABLE UV_WRITABLE
 
 #define CONCAT_INNER(a, b) a##b
 #define CONCAT(a, b) CONCAT_INNER(a, b)
@@ -22,6 +71,7 @@
 #define UNIQUE_TMP_NAME(base) CONCAT(base, __LINE__)
 
 /// @brief assert with message
+#ifndef m_assert
 #ifndef NDEBUG
 #define m_assert(expr, msg)                                                        \
     ({                                                                             \
@@ -34,7 +84,30 @@
 #else
 #define m_assert(expr, msg) ((void)0)
 #endif
+#endif
 
+#ifndef static_assert
+/// @brief static assert
+#define static_assert _Static_assert
+#endif
+#ifndef panic
+/// @brief print a error message and abort
+#define panic(msg)                                                             \
+  do {                                                                         \
+    fprintf(stderr, "panic: %s at %s - %s:%d\n", msg, __FILE__,                \
+            __PRETTY_FUNCTION__, __LINE__);                                    \
+    abort();                                                                   \
+  } while (0)
+#endif
+#ifndef panic_fmt
+/// @brief print a error message and abort
+#define panic_fmt(fmt, ...)                                                    \
+  do {                                                                         \
+    fprintf(stderr, "panic: " fmt " at %s - %s:%d\n", __VA_ARGS__, __FILE__,   \
+            __PRETTY_FUNCTION__, __LINE__);                                    \
+    abort();                                                                   \
+  } while (0)
+#endif
 /// @brief spins until lock is acquired
 static atomic_flag* kyros_spin_lock(atomic_flag* lock)
 {
@@ -132,8 +205,8 @@ typedef struct {
     uint32_t ref_count; // u32 should be fine right?
     KYROS_SOCKET_STATUS status : 5; // up to 32 status, should be fine
     bool allow_half_open : 1; // really needed and useful, if false it will close the socket if the readable side closes
-    bool paused : 1;
-    bool client : 1;
+    bool is_paused : 1;
+    bool is_client : 1;
     // usockets uses the uv_poll_t ptr + fd + poll_type
     // our solution tags the ptr instead of poll_type
     // and uses ref_count + flags with should be basically fd + poll_type in size
@@ -149,9 +222,19 @@ typedef struct {
 } kyros_socket_internal_pipe;
 
 typedef struct {
+  uint64_t len;
+  uint64_t offset;
+  unsigned char* buffer;
+} kyros_buffer;
+
+typedef struct {
     kyros_socket_internal socket;
     kyros_socket_internal_poll poll;
     kyros_socket_handler* handlers;
+    uint32_t timeout; // in ms default 0 (no timeout)
+    kyros_socket_cork_behavior cork_behavior : 2; // 0 = disabled, 1 = manual, 2 = auto
+     // if true increase sizeof(kyros_buffer) at the end of the full size struct
+    bool enable_write_buffer: 1;
 } kyros_socket_internal_tcp;
 
 typedef struct {

@@ -10,6 +10,8 @@ void task(void* ctx) {
 }
 
 int main() {
+    kyros_init();
+    
     auto start = uv_now(uv_default_loop());
     auto loop = kyros_loop_default();
     kyros_loop_defer(loop, task, (void*)1);
