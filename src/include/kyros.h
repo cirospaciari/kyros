@@ -10,7 +10,7 @@
 #else
 #define export
 #endif
-/// @brief initialize kyros library, and its dependences like BoringSSL and libuv
+/// @brief initialize kyros library and its dependences like BoringSSL and libuv
 export void kyros_init();
 
 typedef struct kyros_loop kyros_loop;
